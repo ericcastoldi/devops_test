@@ -3,6 +3,8 @@ language: go
 go:
   - 1.19
 
+sudo: true
+
 script:
   - go mod init get-ninjas-api 
   - go mod tidy
