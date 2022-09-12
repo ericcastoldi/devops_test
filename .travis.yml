@@ -20,4 +20,4 @@ jobs:
         - docker build --tag get-ninjas-api .
     - stage: Tests
       script: 
-        - go test
+        - go test -v
