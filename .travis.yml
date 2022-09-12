@@ -4,7 +4,6 @@ go:
   - 1.19
 
 script:
-  - golangci-lint run 
   - go mod init get-ninjas-api 
   - go mod tidy
   - go build -o /get-ninjas-api
