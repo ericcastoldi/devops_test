@@ -3,9 +3,18 @@ language: go
 go:
   - 1.19
 
-sudo: true
+stages:
+  - Build
+  - Tests
+  - Deploy
 
-script:
-  - go mod init get-ninjas-api 
-  - go mod tidy
-  - go build -o get-ninjas-api
+jobs:
+  include:
+    - stage: Build
+      script:
+        - go mod init get-ninjas-api 
+        - go mod tidy
+        - go build -o get-ninjas-api
+    - stage: Tests
+      script: 
+        - go test
