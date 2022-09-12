@@ -1,0 +1,9 @@
+language: go
+
+go:
+  - 1.19
+
+script:
+  - go mod init get-ninjas-api 
+  - go mod tidy
+  - go build -o /get-ninjas-api
