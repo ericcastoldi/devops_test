@@ -16,6 +16,7 @@ jobs:
         - go mod tidy
         - go build -o get-ninjas-api
     - name: Build Image
+      script:
         - docker build --tag get-ninjas-api .
     - stage: Tests
       script: 
