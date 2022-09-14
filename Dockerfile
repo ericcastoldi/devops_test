@@ -1,12 +1,24 @@
-FROM golang:1.19-alpine
+# Build
+FROM golang:1.19-alpine AS build
+
+RUN apk add build-base
 
 WORKDIR /app
 
-COPY main.go ./
+COPY go.mod ./
+COPY go.sum ./
+RUN go mod download
 
-RUN go mod init get-ninjas-api && go mod tidy
-RUN go build -o get-ninjas-api
+COPY *.go ./
 
-EXPOSE 8000
+RUN go test --cover -v
+RUN go build -v -o get-ninjas-api
 
-CMD [ "./get-ninjas-api" ]
+# Run
+FROM alpine:3.16.2
+
+WORKDIR /
+
+COPY --from=build /app/get-ninjas-api /get-ninjas-api
+
+ENTRYPOINT ["/get-ninjas-api"]

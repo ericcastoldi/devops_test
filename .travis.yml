@@ -12,12 +12,11 @@ jobs:
   include:
     - stage: Build
       script:
-        - go mod init get-ninjas-api 
-        - go mod tidy
-        - go build -o get-ninjas-api
+        - go mod download
+        - go build -v -o get-ninjas-api
     - name: Build Image
       script:
         - docker build --tag get-ninjas-api .
     - stage: Tests
       script: 
-        - go test -v
+        - go test --cover -v
