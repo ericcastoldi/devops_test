@@ -10,13 +10,16 @@ stages:
 
 jobs:
   include:
-    - stage: Build
+    - stage: Run Tests
+      script: 
+        - go test --cover -v
+    - stage: Build App
       script:
         - go mod download
         - go build -v -o get-ninjas-api
-    - name: Build Image
+    - name: Build And Push Image
       script:
+        - echo $DOCKERHUB_PASS | docker login --username $DOCKERHUB_USER --password-stdin
         - docker build --tag get-ninjas-api .
-    - stage: Tests
-      script: 
-        - go test --cover -v
+        - docker push "$DOCKERHUB_USER/get-ninjas-api:latest"
+

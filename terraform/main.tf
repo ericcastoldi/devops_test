@@ -1,3 +1,6 @@
+# TODO: Separar estrutura terraform em modulos
+# TODO: Garantir que todas as configuraçoes de region vem de var.region
+# TODO: Criar variáveis para AZs e CIDRs de vpc e de subnets
 # TODO: Refatorar subnets e todos os outros recursos de rede que estão sendo criados de forma duplicada. Utilizar maps e for_eachs. Exemplo - https://engineering.finleap.com/posts/2020-02-20-ecs-fargate-terraform/#vpc
 
 terraform {
@@ -283,212 +286,476 @@ resource "aws_eks_fargate_profile" "kube-system" {
 }
 
 
+data "aws_eks_cluster_auth" "eks" {
+  name = aws_eks_cluster.cluster.id
+}
 
-# resource "aws_eks_cluster" "eks_cluster" {
-#   name = "${var.cluster_name}-${var.env}"
+resource "null_resource" "k8s_patcher" {
+  depends_on = [aws_eks_fargate_profile.kube-system]
 
-#   role_arn                  = aws_iam_role.eks_cluster_role.arn
-#   enabled_cluster_log_types = ["api", "audit", "authenticator", "controllerManager", "scheduler"]
+  triggers = {
+    endpoint = aws_eks_cluster.cluster.endpoint
+    ca_crt   = base64decode(aws_eks_cluster.cluster.certificate_authority[0].data)
+    token    = data.aws_eks_cluster_auth.eks.token
+  }
+
+  provisioner "local-exec" {
+    command = <<EOH
+cat >/tmp/ca.crt <<EOF
+${base64decode(aws_eks_cluster.cluster.certificate_authority[0].data)}
+EOF
+kubectl \
+  --server="${aws_eks_cluster.cluster.endpoint}" \
+  --certificate_authority=/tmp/ca.crt \
+  --token="${data.aws_eks_cluster_auth.eks.token}" \
+  patch deployment coredns \
+  -n kube-system --type json \
+  -p='[{"op": "remove", "path": "/spec/template/metadata/annotations/eks.amazonaws.com~1compute-type"}]'
+EOH
+  }
+
+  lifecycle {
+    ignore_changes = [triggers]
+  }
+}
+
+resource "aws_eks_fargate_profile" "app" {
+  cluster_name           = aws_eks_cluster.cluster.name
+  fargate_profile_name   = var.env
+  pod_execution_role_arn = aws_iam_role.eks-fargate-profile.arn
+
+  subnet_ids = [
+    aws_subnet.private-us-east-1a.id,
+    aws_subnet.private-us-east-1b.id
+  ]
+
+  selector {
+    namespace = var.env
+  }
+}
+
+data "tls_certificate" "eks" {
+  url = aws_eks_cluster.cluster.identity[0].oidc[0].issuer
+}
+
+resource "aws_iam_openid_connect_provider" "eks" {
+  client_id_list  = ["sts.amazonaws.com"]
+  thumbprint_list = [data.tls_certificate.eks.certificates[0].sha1_fingerprint]
+  url             = aws_eks_cluster.cluster.identity[0].oidc[0].issuer
+}
+
+data "aws_eks_cluster" "cluster" {
+  name = aws_eks_cluster.cluster.id
+}
+
+data "aws_eks_cluster_auth" "cluster" {
+  name = aws_eks_cluster.cluster.id
+}
+
+provider "kubernetes" {
+  host                   = data.aws_eks_cluster.cluster.endpoint
+  cluster_ca_certificate = base64decode(data.aws_eks_cluster.cluster.certificate_authority[0].data)
+  token                  = data.aws_eks_cluster_auth.cluster.token
+}
+
+resource "kubernetes_namespace" "app_namespace" {
+  metadata {
+    name = var.env
+    labels = {
+      app = var.app_name
+    }
+  }
+
+  depends_on = [aws_eks_fargate_profile.app]
+}
+
+resource "kubernetes_deployment" "app" {
+  metadata {
+    name      = "${var.app_name}-deployment"
+    namespace = var.env
+    labels = {
+      app = var.app_name
+    }
+  }
+
+  spec {
+    replicas = 2
+
+    selector {
+      match_labels = {
+        app = var.app_name
+      }
+    }
+
+    template {
+      metadata {
+        labels = {
+          app = var.app_name
+        }
+      }
+
+      spec {
+        container {
+          image = var.app_image
+          name  = var.app_name
+
+          port {
+            container_port = var.app_port
+          }
+        }
+      }
+    }
+  }
+  depends_on = [kubernetes_namespace.app_namespace]
+}
 
 
-#   vpc_config {
-#     subnet_ids = concat(var.public_subnets, var.private_subnets)
-#   }
+# --------- DAQUI PRA BAIXO -----------
 
-#   timeouts {
-#     delete = "30m"
-#   }
+resource "kubernetes_service" "app" {
+  metadata {
+    name      = "${var.app_name}-service"
+    namespace = var.env
+  }
+  spec {
+    selector = {
+      app = var.app_name
+    }
 
-#   depends_on = [
-#     aws_iam_role_policy_attachment.AmazonEKSClusterPolicy1,
-#     aws_iam_role_policy_attachment.AmazonEKSVPCResourceController1,
-#     aws_cloudwatch_log_group.cloudwatch_log_group
-#   ]
-# }
+    port {
+      port        = var.app_port
+      target_port = var.app_port
+      protocol    = "TCP"
+    }
 
-# resource "aws_iam_policy" "AmazonEKSClusterCloudWatchMetricsPolicy" {
-#   name   = "AmazonEKSClusterCloudWatchMetricsPolicy"
-#   policy = <<EOF
-# {
-#     "Version": "2012-10-17",
-#     "Statement": [
-#         {
-#             "Action": [
-#                 "cloudwatch:PutMetricData"
-#             ],
-#             "Resource": "*",
-#             "Effect": "Allow"
-#         }
-#     ]
-# }
-# EOF
-# }
+    type = "NodePort"
+  }
 
+  depends_on = [kubernetes_deployment.app]
+}
 
-# resource "aws_iam_role" "eks_cluster_role" {
-#   name                  = "${var.cluster_name}-cluster-role"
-#   description           = "Allow cluster to manage node groups, fargate nodes and cloudwatch logs"
-#   force_detach_policies = true
-#   assume_role_policy    = <<POLICY
-# {
-#   "Version": "2012-10-17",
-#   "Statement": [
-#     {
-#       "Effect": "Allow",
-#       "Principal": {
-#         "Service": [
-#           "eks.amazonaws.com",
-#           "eks-fargate-pods.amazonaws.com"
-#           ]
-#       },
-#       "Action": "sts:AssumeRole"
+resource "aws_iam_policy" "ALB-policy" {
+  name   = "ALBIngressControllerIAMPolicy"
+  policy = <<POLICY
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "acm:DescribeCertificate",
+        "acm:ListCertificates",
+        "acm:GetCertificate"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "ec2:AuthorizeSecurityGroupIngress",
+        "ec2:CreateSecurityGroup",
+        "ec2:CreateTags",
+        "ec2:DeleteTags",
+        "ec2:DeleteSecurityGroup",
+        "ec2:DescribeAccountAttributes",
+        "ec2:DescribeAddresses",
+        "ec2:DescribeInstances",
+        "ec2:DescribeInstanceStatus",
+        "ec2:DescribeInternetGateways",
+        "ec2:DescribeNetworkInterfaces",
+        "ec2:DescribeSecurityGroups",
+        "ec2:DescribeSubnets",
+        "ec2:DescribeTags",
+        "ec2:DescribeVpcs",
+        "ec2:ModifyInstanceAttribute",
+        "ec2:ModifyNetworkInterfaceAttribute",
+        "ec2:RevokeSecurityGroupIngress"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "elasticloadbalancing:AddListenerCertificates",
+        "elasticloadbalancing:AddTags",
+        "elasticloadbalancing:CreateListener",
+        "elasticloadbalancing:CreateLoadBalancer",
+        "elasticloadbalancing:CreateRule",
+        "elasticloadbalancing:CreateTargetGroup",
+        "elasticloadbalancing:DeleteListener",
+        "elasticloadbalancing:DeleteLoadBalancer",
+        "elasticloadbalancing:DeleteRule",
+        "elasticloadbalancing:DeleteTargetGroup",
+        "elasticloadbalancing:DeregisterTargets",
+        "elasticloadbalancing:DescribeListenerCertificates",
+        "elasticloadbalancing:DescribeListeners",
+        "elasticloadbalancing:DescribeLoadBalancers",
+        "elasticloadbalancing:DescribeLoadBalancerAttributes",
+        "elasticloadbalancing:DescribeRules",
+        "elasticloadbalancing:DescribeSSLPolicies",
+        "elasticloadbalancing:DescribeTags",
+        "elasticloadbalancing:DescribeTargetGroups",
+        "elasticloadbalancing:DescribeTargetGroupAttributes",
+        "elasticloadbalancing:DescribeTargetHealth",
+        "elasticloadbalancing:ModifyListener",
+        "elasticloadbalancing:ModifyLoadBalancerAttributes",
+        "elasticloadbalancing:ModifyRule",
+        "elasticloadbalancing:ModifyTargetGroup",
+        "elasticloadbalancing:ModifyTargetGroupAttributes",
+        "elasticloadbalancing:RegisterTargets",
+        "elasticloadbalancing:RemoveListenerCertificates",
+        "elasticloadbalancing:RemoveTags",
+        "elasticloadbalancing:SetIpAddressType",
+        "elasticloadbalancing:SetSecurityGroups",
+        "elasticloadbalancing:SetSubnets",
+        "elasticloadbalancing:SetWebACL"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "iam:CreateServiceLinkedRole",
+        "iam:GetServerCertificate",
+        "iam:ListServerCertificates"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "cognito-idp:DescribeUserPoolClient"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "waf-regional:GetWebACLForResource",
+        "waf-regional:GetWebACL",
+        "waf-regional:AssociateWebACL",
+        "waf-regional:DisassociateWebACL"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "tag:GetResources",
+        "tag:TagResources"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "waf:GetWebACL"
+      ],
+      "Resource": "*"
+    }
+  ]
+}
+POLICY
+}
+
+data "aws_caller_identity" "current" {}
+
+resource "aws_iam_role" "eks_alb_ingress_controller" {
+  name        = "eks-alb-ingress-controller"
+  description = "Permissions required by the Kubernetes AWS ALB Ingress controller to do its job."
+
+  force_detach_policies = true
+
+  assume_role_policy = <<ROLE
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": {
+        "Federated": "arn:aws:iam::${data.aws_caller_identity.current.account_id}:oidc-provider/${replace(data.aws_eks_cluster.cluster.identity[0].oidc[0].issuer, "https://", "")}"
+      },
+      "Action": "sts:AssumeRoleWithWebIdentity",
+      "Condition": {
+        "StringEquals": {
+          "${replace(data.aws_eks_cluster.cluster.identity[0].oidc[0].issuer, "https://", "")}:sub": "system:serviceaccount:kube-system:alb-ingress-controller"
+        }
+      }
+    }
+  ]
+}
+ROLE
+}
+
+resource "aws_iam_role_policy_attachment" "ALB-policy_attachment" {
+  policy_arn = aws_iam_policy.ALB-policy.arn
+  role       = aws_iam_role.eks_alb_ingress_controller.name
+}
+
+resource "kubernetes_cluster_role" "ingress" {
+  metadata {
+    name = "alb-ingress-controller"
+    labels = {
+      "app.kubernetes.io/name"       = "alb-ingress-controller"
+      "app.kubernetes.io/managed-by" = "terraform"
+    }
+  }
+
+  rule {
+    api_groups = ["", "extensions"]
+    resources  = ["configmaps", "endpoints", "events", "ingresses", "ingresses/status", "services"]
+    verbs      = ["create", "get", "list", "update", "watch", "patch"]
+  }
+
+  rule {
+    api_groups = ["", "extensions"]
+    resources  = ["nodes", "pods", "secrets", "services", "namespaces"]
+    verbs      = ["get", "list", "watch"]
+  }
+}
+
+resource "kubernetes_cluster_role_binding" "ingress" {
+  metadata {
+    name = "alb-ingress-controller"
+    labels = {
+      "app.kubernetes.io/name"       = "alb-ingress-controller"
+      "app.kubernetes.io/managed-by" = "terraform"
+    }
+  }
+  role_ref {
+    api_group = "rbac.authorization.k8s.io"
+    kind      = "ClusterRole"
+    name      = kubernetes_cluster_role.ingress.metadata[0].name
+  }
+  subject {
+    kind      = "ServiceAccount"
+    name      = kubernetes_service_account.ingress.metadata[0].name
+    namespace = kubernetes_service_account.ingress.metadata[0].namespace
+  }
+
+  depends_on = [kubernetes_cluster_role.ingress]
+}
+
+resource "kubernetes_service_account" "ingress" {
+  automount_service_account_token = true
+  metadata {
+    name      = "alb-ingress-controller"
+    namespace = "kube-system"
+    labels = {
+      "app.kubernetes.io/name"       = "alb-ingress-controller"
+      "app.kubernetes.io/managed-by" = "terraform"
+    }
+    annotations = {
+      "eks.amazonaws.com/role-arn" = aws_iam_role.eks_alb_ingress_controller.arn
+    }
+  }
+}
+
+# resource "kubernetes_deployment" "ingress" {
+#   metadata {
+#     name      = "alb-ingress-controller"
+#     namespace = "kube-system"
+#     labels = {
+#       "app.kubernetes.io/name"       = "alb-ingress-controller"
+#       "app.kubernetes.io/version"    = "v1.1.6"
+#       "app.kubernetes.io/managed-by" = "terraform"
 #     }
-#   ]
-# }
-# POLICY
-# }
-
-# resource "aws_iam_role_policy_attachment" "AmazonEKSClusterPolicy1" {
-#   policy_arn = "arn:aws:iam::aws:policy/AmazonEKSClusterPolicy"
-#   role       = aws_iam_role.eks_cluster_role.name
-# }
-
-# resource "aws_iam_role_policy_attachment" "AmazonEKSCloudWatchMetricsPolicy" {
-#   policy_arn = aws_iam_policy.AmazonEKSClusterCloudWatchMetricsPolicy.arn
-#   role       = aws_iam_role.eks_cluster_role.name
-# }
-
-# resource "aws_iam_role_policy_attachment" "AmazonEKSVPCResourceController1" {
-#   policy_arn = "arn:aws:iam::aws:policy/AmazonEKSVPCResourceController"
-#   role       = aws_iam_role.eks_cluster_role.name
-# }
-
-# resource "aws_cloudwatch_log_group" "cloudwatch_log_group" {
-#   name              = "/aws/eks/${var.cluster_name}-${var.environment}/cluster"
-#   retention_in_days = 30
-
-#   tags = {
-#     Name = "${var.cluster_name}-${var.environment}-eks-cloudwatch-log-group"
-#   }
-# }
-
-# resource "aws_eks_fargate_profile" "eks_fargate" {
-#   cluster_name           = aws_eks_cluster.eks_cluster.name
-#   fargate_profile_name   = "${var.cluster_name}-${var.environment}-fargate-profile"
-#   pod_execution_role_arn = aws_iam_role.eks_fargate_role.arn
-#   subnet_ids             = var.private_subnets
-
-#   selector {
-#     namespace = var.fargate_namespace
 #   }
 
+#   spec {
+#     replicas = 1
 
-
-#   timeouts {
-#     create = "30m"
-#     delete = "30m"
-#   }
-# }
-
-# resource "aws_iam_role" "eks_fargate_role" {
-#   name                  = "${var.cluster_name}-fargate_cluster_role"
-#   description           = "Allow fargate cluster to allocate resources for running pods"
-#   force_detach_policies = true
-#   assume_role_policy    = <<POLICY
-# {
-#   "Version": "2012-10-17",
-#   "Statement": [
-#     {
-#       "Effect": "Allow",
-#       "Principal": {
-#         "Service": [
-#           "eks.amazonaws.com",
-#           "eks-fargate-pods.amazonaws.com"
-#           ]
-#       },
-#       "Action": "sts:AssumeRole"
-#     }
-#   ]
-# }
-# POLICY
-# }
-
-# resource "aws_iam_role_policy_attachment" "AmazonEKSFargatePodExecutionRolePolicy" {
-#   policy_arn = "arn:aws:iam::aws:policy/AmazonEKSFargatePodExecutionRolePolicy"
-#   role       = aws_iam_role.eks_fargate_role.name
-# }
-
-# resource "aws_iam_role_policy_attachment" "AmazonEKSClusterPolicy" {
-#   policy_arn = "arn:aws:iam::aws:policy/AmazonEKSClusterPolicy"
-#   role       = aws_iam_role.eks_fargate_role.name
-# }
-
-
-# resource "aws_iam_role_policy_attachment" "AmazonEKSVPCResourceController" {
-#   policy_arn = "arn:aws:iam::aws:policy/AmazonEKSVPCResourceController"
-#   role       = aws_iam_role.eks_fargate_role.name
-# }
-
-
-
-# resource "aws_eks_node_group" "eks_node_group" {
-#   cluster_name    = aws_eks_cluster.eks_cluster.name
-#   node_group_name = "${var.cluster_name}-${var.environment}-node_group"
-#   node_role_arn   = aws_iam_role.eks_node_group_role.arn
-#   subnet_ids      = var.public_subnets
-
-#   scaling_config {
-#     desired_size = 2
-#     max_size     = 3
-#     min_size     = 2
-#   }
-
-#   instance_types = ["${var.eks_node_group_instance_types}"]
-
-#   depends_on = [
-#     aws_iam_role_policy_attachment.AmazonEKSWorkerNodePolicy,
-#     aws_iam_role_policy_attachment.AmazonEKS_CNI_Policy,
-#     aws_iam_role_policy_attachment.AmazonEC2ContainerRegistryReadOnly,
-#   ]
-# }
-
-# resource "aws_iam_role" "eks_node_group_role" {
-#   name = "${var.cluster_name}-node-group_role"
-
-#   assume_role_policy = jsonencode({
-#     Statement = [{
-#       Action = "sts:AssumeRole"
-#       Effect = "Allow"
-#       Principal = {
-#         Service = "ec2.amazonaws.com"
+#     selector {
+#       match_labels = {
+#         "app.kubernetes.io/name" = "alb-ingress-controller"
 #       }
-#     }]
-#     Version = "2012-10-17"
-#   })
+#     }
+
+#     template {
+#       metadata {
+#         labels = {
+#           "app.kubernetes.io/name"    = "alb-ingress-controller"
+#           "app.kubernetes.io/version" = "v1.1.6"
+#         }
+#       }
+
+#       spec {
+#         dns_policy                       = "ClusterFirst"
+#         restart_policy                   = "Always"
+#         service_account_name             = kubernetes_service_account.ingress.metadata[0].name
+#         termination_grace_period_seconds = 60
+
+#         container {
+#           name              = "alb-ingress-controller"
+#           image             = "docker.io/amazon/aws-alb-ingress-controller:v1.1.6"
+#           image_pull_policy = "Always"
+
+#           args = [
+#             "--ingress-class=alb",
+#             "--cluster-name=${var.cluster_name}",
+#             "--aws-vpc-id=${aws_vpc.main.id}",
+#             "--aws-region=${var.app_region}",
+#             "--aws-max-retries=10",
+#           ]
+#           volume_mount {
+#             mount_path = "/var/run/secrets/kubernetes.io/serviceaccount"
+#             name       = kubernetes_service_account.ingress.default_secret_name
+#             read_only  = true
+#           }
+#         }
+#         volume {
+#           name = kubernetes_service_account.ingress.default_secret_name
+
+#           secret {
+#             secret_name = kubernetes_service_account.ingress.default_secret_name
+#           }
+#         }
+#       }
+#     }
+#   }
+
+#   depends_on = [kubernetes_cluster_role_binding.ingress]
 # }
 
-# resource "aws_iam_role_policy_attachment" "AmazonEKSWorkerNodePolicy" {
-#   policy_arn = "arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy"
-#   role       = aws_iam_role.eks_node_group_role.name
-# }
+# resource "kubernetes_ingress" "app" {
+#   metadata {
+#     name      = "${var.app_name}-lb"
+#     namespace = var.env
+#     annotations = {
+#       "kubernetes.io/ingress.class"           = "alb"
+#       "alb.ingress.kubernetes.io/scheme"      = "internet-facing"
+#       "alb.ingress.kubernetes.io/target-type" = "ip"
+#     }
+#     labels = {
+#       "app" = var.app_name
+#     }
+#   }
 
-# resource "aws_iam_role_policy_attachment" "AmazonEKS_CNI_Policy" {
-#   policy_arn = "arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy"
-#   role       = aws_iam_role.eks_node_group_role.name
-# }
+#   spec {
+#     default_backend {
+#       service {
+#         name = "${var.app_name}-service"
+#         port {
+#           number = var.app_port
+#         } 
+#       }
+#     }
+#     rule {
+#       http {
+#         path {
+#           path = "/"
+#           backend {
+#             service {
+#               name = "${var.app_name}-service"
+#               port {
+#                 number = var.app_port
+#               }
+#             }
+#           }
+#         }
+#       }
+#     }
+#   }
 
-# resource "aws_iam_role_policy_attachment" "AmazonEC2ContainerRegistryReadOnly" {
-#   policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
-#   role       = aws_iam_role.eks_node_group_role.name
+#   depends_on = [kubernetes_service.app]
 # }
-
-# data "tls_certificate" "auth" {
-#   url = aws_eks_cluster.eks_cluster.identity[0].oidc[0].issuer
-# }
-
-# resource "aws_iam_openid_connect_provider" "main" {
-#   client_id_list  = ["sts.amazonaws.com"]
-#   thumbprint_list = [data.tls_certificate.auth.certificates[0].sha1_fingerprint]
-#   url             = aws_eks_cluster.eks_cluster.identity[0].oidc[0].issuer
-# }
-
