@@ -20,6 +20,6 @@ jobs:
     - name: Build And Push Image
       script:
         - echo $DOCKERHUB_PASS | docker login --username $DOCKERHUB_USER --password-stdin
-        - docker build --tag get-ninjas-api .
+        - docker build --tag "$DOCKERHUB_USER/get-ninjas-api" .
         - docker push "$DOCKERHUB_USER/get-ninjas-api:latest"
 
