@@ -5,8 +5,8 @@ go:
   - 1.19
 
 stages:
-  - Build
   - Tests
+  - Build
   - Plan
 
 jobs:
