@@ -1,7 +1,5 @@
 language: go
 
-env:
-  - tf_version=1.1.4 tf_init_cli_options="-input=false" tf_validation_cli_options="" tf_plan_cli_options="-lock=false -input=false" tf_apply_cli_options="-auto-approve -input=false"
 
 go:
   - 1.19
@@ -27,6 +25,8 @@ jobs:
         - docker push "$DOCKERHUB_USER/get-ninjas-api:latest"
       include:
     - stage: Plan
+      env:
+        - tf_version=1.1.4 tf_init_cli_options="-input=false" tf_validation_cli_options="" tf_plan_cli_options="-lock=false -input=false" tf_apply_cli_options="-auto-approve -input=false"
       script:
         - cd terraform
         - wget https://releases.hashicorp.com/terraform/"$tf_version"/terraform_"$tf_version"_linux_amd64.zip
