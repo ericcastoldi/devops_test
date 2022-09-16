@@ -18,7 +18,7 @@ resource "aws_eks_cluster" "cluster" {
 
 
 # Fargate
-resource "aws_eks_fargate_profile" "kube-system" {
+resource "aws_eks_fargate_profile" "kube_system" {
   cluster_name           = aws_eks_cluster.cluster.name
   fargate_profile_name   = "kube-system"
   pod_execution_role_arn = var.fargate_profile_iam_role_arn
@@ -55,7 +55,7 @@ data "aws_eks_cluster_auth" "cluster" {
 }
 
 resource "null_resource" "k8s_patcher" {
-  depends_on = [aws_eks_fargate_profile.kube-system]
+  depends_on = [aws_eks_fargate_profile.kube_system]
 
   triggers = {
     endpoint = data.aws_eks_cluster.cluster.endpoint
@@ -146,9 +146,62 @@ resource "kubernetes_deployment" "app" {
           port {
             container_port = var.app_port
           }
+
+          # resources {
+          #   limits = {
+          #     cpu    = "0.5"
+          #     memory = "512Mi"
+          #   }
+          #   requests = {
+          #     cpu    = "250m"
+          #     memory = "50Mi"
+          #   }
+          # }
+
+          liveness_probe {
+
+            http_get {
+              path = "/healthcheck"
+              port = var.app_port
+            }
+
+            initial_delay_seconds = 3
+            period_seconds        = 3
+          }
         }
       }
     }
   }
   depends_on = [kubernetes_namespace.app_namespace]
+}
+
+
+# Metrics
+
+provider "helm" {
+  kubernetes {
+    host                   = data.aws_eks_cluster.cluster.endpoint
+    cluster_ca_certificate = base64decode(data.aws_eks_cluster.cluster.certificate_authority[0].data)
+    exec {
+      api_version = "client.authentication.k8s.io/v1alpha1"
+      args        = ["eks", "get-token", "--cluster-name", data.aws_eks_cluster.cluster.id]
+      command     = "aws"
+    }
+  }
+}
+
+resource "helm_release" "metrics_server" {
+  name = "${var.cluster_name}-${var.env}-metrics-server"
+
+  repository = "https://kubernetes-sigs.github.io/metrics-server/"
+  chart      = "metrics-server"
+  namespace  = "kube-system"
+  version    = "3.8.2"
+
+  set {
+    name  = "metrics.enabled"
+    value = false
+  }
+
+  depends_on = [aws_eks_fargate_profile.kube_system]
 }

@@ -80,3 +80,8 @@ resource "aws_cloudwatch_log_group" "cloudwatch_log_group" {
     Name = "${var.cluster_name}-${var.env}-eks-cloudwatch-log-group"
   }
 }
+
+resource "aws_iam_role_policy_attachment" "eks_vpc_resource_controller_policy_attachment" {
+  policy_arn = "arn:aws:iam::aws:policy/AmazonEKSVPCResourceController"
+  role       = aws_iam_role.eks_cluster_role.name
+}
