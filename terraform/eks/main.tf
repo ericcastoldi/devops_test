@@ -158,16 +158,16 @@ resource "kubernetes_deployment" "app" {
           #   }
           # }
 
-          liveness_probe {
+          # liveness_probe {
 
-            http_get {
-              path = "/healthcheck"
-              port = var.app_port
-            }
+          #   http_get {
+          #     path = "/healthcheck"
+          #     port = var.app_port
+          #   }
 
-            initial_delay_seconds = 3
-            period_seconds        = 3
-          }
+          #   initial_delay_seconds = 3
+          #   period_seconds        = 3
+          # }
         }
       }
     }
