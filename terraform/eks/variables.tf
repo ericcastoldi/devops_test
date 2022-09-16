@@ -26,6 +26,10 @@ variable "fargate_profile_iam_role_arn" {
   type = string
 }
 
+variable "load_balancer_controller_role_arn" {
+  type = string
+}
+
 variable "app_image" {
   default     = "ericcastoldi/get-ninjas-api:latest"
   description = "Imagem Docker da aplicação."

@@ -42,17 +42,18 @@ module "iam" {
 module "eks" {
   source = "./eks"
 
-  env                          = var.env
-  cluster_name                 = var.cluster_name
-  cluster_version              = var.cluster_version
-  cluster_iam_role_arn         = module.iam.cluster_iam_role_arn
-  public_subnet_ids            = module.vpc.public_subnet_ids
-  private_subnet_ids           = module.vpc.private_subnet_ids
-  app_name                     = var.app_name
-  app_port                     = var.app_port
-  app_image                    = var.app_image
-  fargate_profile_iam_role_arn = module.iam.fargate_profile_iam_role_arn
-  vpc_id                       = module.vpc.vpc_id
+  env                               = var.env
+  cluster_name                      = var.cluster_name
+  cluster_version                   = var.cluster_version
+  cluster_iam_role_arn              = module.iam.cluster_iam_role_arn
+  public_subnet_ids                 = module.vpc.public_subnet_ids
+  private_subnet_ids                = module.vpc.private_subnet_ids
+  app_name                          = var.app_name
+  app_port                          = var.app_port
+  app_image                         = var.app_image
+  fargate_profile_iam_role_arn      = module.iam.fargate_profile_iam_role_arn
+  load_balancer_controller_role_arn = module.iam.load_balancer_controller_role_arn
+  vpc_id                            = module.vpc.vpc_id
 }
 
 
