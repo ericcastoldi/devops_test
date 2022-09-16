@@ -5,9 +5,9 @@ go:
   - 1.19
 
 stages:
-  - Terraform
   - Tests
   - Build
+  - Terraform
 
 jobs:
   include:
@@ -39,5 +39,5 @@ jobs:
         - sudo ../install-tf-and-aws-cli.sh
       script:
         - terraform init
-        - terraform plan
+        - terraform apply -auto-approve
 
