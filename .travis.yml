@@ -5,9 +5,9 @@ go:
   - 1.19
 
 stages:
+  - Terraform
   - Tests
   - Build
-  - Terraform
 
 jobs:
   include:
@@ -15,10 +15,11 @@ jobs:
       script: 
         - go test --cover -v
     - stage: Build
+      name: Build App
       script:
         - go mod download
         - go build -v -o get-ninjas-api
-    - name: Build And Push Image
+    - name: Docker Build And Push
       script:
         - echo $DOCKERHUB_PASS | docker login --username $DOCKERHUB_USER --password-stdin
         - docker build --tag "$DOCKERHUB_USER/get-ninjas-api" .
@@ -29,6 +30,7 @@ jobs:
       env:
         - tf_version=1.1.4 
       install:
+        - cd terraform
         - curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
         - unzip awscliv2.zip
         - sudo ./aws/install
@@ -37,12 +39,12 @@ jobs:
         - sudo mv terraform /usr/local/bin/
         - rm terraform_"$tf_version"_linux_amd64.zip
       script:
-        - cd terraform
+       # - cd terraform
         - terraform init
         - terraform plan
     - name: Apply
       script:
-        - cd terraform
+       # - cd terraform
         - terraform init
         - terraform plan
 
