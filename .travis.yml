@@ -31,18 +31,15 @@ jobs:
         - tf_version=1.1.4 
       install:
         - cd terraform
-        - curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
-        - unzip awscliv2.zip
-        - sudo ./aws/install
-        - wget https://releases.hashicorp.com/terraform/"$tf_version"/terraform_"$tf_version"_linux_amd64.zip
-        - unzip terraform_"$tf_version"_linux_amd64.zip
-        - sudo mv terraform /usr/local/bin/
-        - rm terraform_"$tf_version"_linux_amd64.zip
+        - ../install-tf-and-aws-cli.sh
       script:
        # - cd terraform
         - terraform init
         - terraform plan
     - name: Apply
+      install:
+        - cd terraform
+        - ../install-tf-and-aws-cli.sh
       script:
        # - cd terraform
         - terraform init
