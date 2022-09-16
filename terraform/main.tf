@@ -214,7 +214,11 @@ resource "aws_iam_role" "eks-cluster" {
     {
       "Effect": "Allow",
       "Principal": {
-        "Service": "eks.amazonaws.com"
+        "Service": [ 
+          "eks.amazonaws.com",
+          "eks-fargate-pods.amazonaws.com"
+        ]
+
       },
       "Action": "sts:AssumeRole"
     }
@@ -232,6 +236,8 @@ resource "aws_eks_cluster" "cluster" {
   name     = var.cluster_name
   version  = var.cluster_version
   role_arn = aws_iam_role.eks-cluster.arn
+
+  enabled_cluster_log_types = ["api", "audit", "authenticator", "controllerManager", "scheduler"]
 
   vpc_config {
 
@@ -732,25 +738,19 @@ resource "kubernetes_ingress" "app" {
   }
 
   spec {
-    default_backend {
-      service {
-        name = "${var.app_name}-service"
-        port {
-          number = var.app_port
-        } 
-      }
+    backend {
+      service_name = "${var.app_name}-service"
+      service_port = var.app_port
+      
     }
+    
     rule {
       http {
         path {
           path = "/"
           backend {
-            service {
-              name = "${var.app_name}-service"
-              port {
-                number = var.app_port
-              }
-            }
+            service_name = "${var.app_name}-service"
+            service_port  = var.app_port
           }
         }
       }
