@@ -34,6 +34,6 @@ jobs:
         - sudo mv terraform /usr/local/bin/
         - rm terraform_"$tf_version"_linux_amd64.zip
         - terraform init
-        - terraform plan
-        #- terraform destroy -auto-approve
+        #- terraform plan
+        - terraform apply -auto-approve
 

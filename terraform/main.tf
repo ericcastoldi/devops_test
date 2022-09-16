@@ -2,7 +2,7 @@ terraform {
   backend "s3" {
     bucket = "get-ninjas-tf-bucket"
     key    = "tf-state"
-    region = var.app_region
+    region = "us-east-1"
   }
   required_providers {
     aws = {
