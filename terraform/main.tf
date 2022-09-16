@@ -657,7 +657,7 @@ resource "kubernetes_deployment" "ingress" {
     namespace = "kube-system"
     labels = {
       "app.kubernetes.io/name"       = "alb-ingress-controller"
-      "app.kubernetes.io/version"    = "v1.1.6"
+      "app.kubernetes.io/version"    = "v1.23"
       "app.kubernetes.io/managed-by" = "terraform"
     }
   }
@@ -675,7 +675,7 @@ resource "kubernetes_deployment" "ingress" {
       metadata {
         labels = {
           "app.kubernetes.io/name"    = "alb-ingress-controller"
-          "app.kubernetes.io/version" = "v1.1.6"
+          "app.kubernetes.io/version" = "v1.23"
         }
       }
 
@@ -687,7 +687,7 @@ resource "kubernetes_deployment" "ingress" {
 
         container {
           name              = "alb-ingress-controller"
-          image             = "docker.io/amazon/aws-alb-ingress-controller:v1.1.6"
+          image             = "docker.io/amazon/aws-alb-ingress-controller:v2.4.3"
           image_pull_policy = "Always"
 
           args = [
@@ -717,45 +717,45 @@ resource "kubernetes_deployment" "ingress" {
   depends_on = [kubernetes_cluster_role_binding.ingress]
 }
 
-# resource "kubernetes_ingress" "app" {
-#   metadata {
-#     name      = "${var.app_name}-lb"
-#     namespace = var.env
-#     annotations = {
-#       "kubernetes.io/ingress.class"           = "alb"
-#       "alb.ingress.kubernetes.io/scheme"      = "internet-facing"
-#       "alb.ingress.kubernetes.io/target-type" = "ip"
-#     }
-#     labels = {
-#       "app" = var.app_name
-#     }
-#   }
+resource "kubernetes_ingress" "app" {
+  metadata {
+    name      = "${var.app_name}-lb"
+    namespace = var.env
+    annotations = {
+      "kubernetes.io/ingress.class"           = "alb"
+      "alb.ingress.kubernetes.io/scheme"      = "internet-facing"
+      "alb.ingress.kubernetes.io/target-type" = "ip"
+    }
+    labels = {
+      "app" = var.app_name
+    }
+  }
 
-#   spec {
-#     default_backend {
-#       service {
-#         name = "${var.app_name}-service"
-#         port {
-#           number = var.app_port
-#         } 
-#       }
-#     }
-#     rule {
-#       http {
-#         path {
-#           path = "/"
-#           backend {
-#             service {
-#               name = "${var.app_name}-service"
-#               port {
-#                 number = var.app_port
-#               }
-#             }
-#           }
-#         }
-#       }
-#     }
-#   }
+  spec {
+    default_backend {
+      service {
+        name = "${var.app_name}-service"
+        port {
+          number = var.app_port
+        } 
+      }
+    }
+    rule {
+      http {
+        path {
+          path = "/"
+          backend {
+            service {
+              name = "${var.app_name}-service"
+              port {
+                number = var.app_port
+              }
+            }
+          }
+        }
+      }
+    }
+  }
 
-#   depends_on = [kubernetes_service.app]
-# }
+  depends_on = [kubernetes_service.app]
+}
