@@ -52,4 +52,10 @@ module "eks" {
   app_port                     = var.app_port
   app_image                    = var.app_image
   fargate_profile_iam_role_arn = module.iam.fargate_profile_iam_role_arn
+  vpc_id                       = module.vpc.vpc_id
+}
+
+
+output "app_endpoint" {
+  value = module.eks.app_endpoint
 }
