@@ -81,21 +81,10 @@ resource "aws_cloudwatch_log_group" "cloudwatch_log_group" {
   }
 }
 
-
-resource "aws_iam_openid_connect_provider" "eks" {
-  client_id_list  = ["sts.amazonaws.com"]
-  thumbprint_list = [data.tls_certificate.eks_cert.certificates[0].sha1_fingerprint]
-  url             = aws_eks_cluster.cluster.identity[0].oidc[0].issuer
-}
-
-
 resource "aws_iam_role_policy_attachment" "eks_vpc_resource_controller_policy_attachment" {
   policy_arn = "arn:aws:iam::aws:policy/AmazonEKSVPCResourceController"
   role       = aws_iam_role.eks_cluster_role.name
 }
-
-
-
 
 data "aws_iam_policy_document" "aws_load_balancer_controller_assume_role_policy" {
   statement {
@@ -104,12 +93,12 @@ data "aws_iam_policy_document" "aws_load_balancer_controller_assume_role_policy"
 
     condition {
       test     = "StringEquals"
-      variable = "${replace(aws_iam_openid_connect_provider.eks.url, "https://", "")}:sub"
+      variable = "${replace(var.openid_connect_provider_url, "https://", "")}:sub"
       values   = ["system:serviceaccount:kube-system:aws-load-balancer-controller"]
     }
 
     principals {
-      identifiers = [aws_iam_openid_connect_provider.eks.arn]
+      identifiers = [var.openid_connect_provider_arn]
       type        = "Federated"
     }
   }

@@ -36,6 +36,8 @@ module "vpc" {
 module "iam" {
   source       = "./iam"
   cluster_name = var.cluster_name
+  openid_connect_provider_arn = module.eks.openid_connect_provider_arn
+  openid_connect_provider_url = module.eks.openid_connect_provider_url
 }
 
 # EKS
@@ -51,6 +53,7 @@ module "eks" {
   app_name                          = var.app_name
   app_port                          = var.app_port
   app_image                         = var.app_image
+  app_region                        = var.app_region
   fargate_profile_iam_role_arn      = module.iam.fargate_profile_iam_role_arn
   load_balancer_controller_role_arn = module.iam.load_balancer_controller_role_arn
   vpc_id                            = module.vpc.vpc_id

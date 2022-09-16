@@ -39,10 +39,6 @@ resource "aws_eks_fargate_profile" "app" {
   }
 }
 
-data "tls_certificate" "eks_cert" {
-  url = aws_eks_cluster.cluster.identity[0].oidc[0].issuer
-}
-
 data "aws_eks_cluster" "cluster" {
   name = aws_eks_cluster.cluster.id
 }
@@ -88,8 +84,15 @@ provider "kubernetes" {
 }
 
 
-# K8s - Ingress Config
+data "tls_certificate" "eks_cert" {
+  url = aws_eks_cluster.cluster.identity[0].oidc[0].issuer
+}
 
+resource "aws_iam_openid_connect_provider" "eks" {
+  client_id_list  = ["sts.amazonaws.com"]
+  thumbprint_list = [data.tls_certificate.eks_cert.certificates[0].sha1_fingerprint]
+  url             = aws_eks_cluster.cluster.identity[0].oidc[0].issuer
+}
 
 # K8s - App Deploy
 resource "kubernetes_namespace" "app_namespace" {
@@ -170,8 +173,7 @@ resource "kubernetes_deployment" "app" {
 }
 
 
-# Metrics
-
+# Metrics Server
 provider "helm" {
   kubernetes {
     host                   = data.aws_eks_cluster.cluster.endpoint
@@ -200,6 +202,8 @@ resource "helm_release" "metrics_server" {
   depends_on = [aws_eks_fargate_profile.kube_system]
 }
 
+
+# Service + Autoscaler
 resource "kubernetes_service" "app_service" {
   metadata {
     name      = "${var.app_name}-service"
@@ -219,7 +223,6 @@ resource "kubernetes_service" "app_service" {
     }
   }
 }
-
 
 resource "kubernetes_horizontal_pod_autoscaler" "app_autoscaler" {
   metadata {
@@ -245,8 +248,7 @@ resource "kubernetes_horizontal_pod_autoscaler" "app_autoscaler" {
 }
 
 
-# Load Balancer
-
+# Load Balancer + Ingress
 resource "helm_release" "aws-load-balancer-controller" {
   name = "${var.cluster_name}-load-balancer-controller"
 
@@ -280,10 +282,9 @@ resource "helm_release" "aws-load-balancer-controller" {
     value = var.load_balancer_controller_role_arn
   }
 
-  # EKS Fargate specific
   set {
     name  = "region"
-    value = "us-east-1"
+    value = var.app_region
   }
 
   set {
