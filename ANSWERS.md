@@ -21,7 +21,7 @@ No quesito escalabilidade, foi utilizado um Horizontal Pod Autoscaler que cria m
 
 A arquitetura final ficou conforme o diagrama abaixo:
 
-<!-- TODO: Adicionar diagrama da arquitetura de infra -->
+![Get Ninjas Test - Infra Diagram](get-ninjas-test-diagram.drawio.png "Get Ninjas Test - Infra Diagram")
 
 ##### IaC
 
