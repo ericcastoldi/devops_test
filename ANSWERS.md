@@ -9,7 +9,38 @@ Dado o Cenário acima queremos que você faça o seguinte:
 
 #### 1. Deploy da aplicação na AWS.
 
-http://k8s-prod-getninja-e1c9510450-56777961.us-east-1.elb.amazonaws.com/healthcheck
+**Aplicação:** http://k8s-prod-getninja-e1c9510450-56777961.us-east-1.elb.amazonaws.com/healthcheck
+
+##### Arquitetura de Infra
+
+A rede foi configurada utilizando uma VPC com duas Availability Zones, contendo 2 subnets publicas e 2 subnets privadas. O deploy da aplicação se dá em um cluster EKS, e seu deployment roda nas subnets privadas. O Load Balancer fica na subnet publica recebendo as requisições vindas via Internet Gateway e repassando ao ingress do Kubernetes até que a requisição chega para os pods (subnet privada). Após o processamento, a resposta passa por um NAT Gateway para voltar para a internet. 
+
+O EKS foi configurado em conjunto com o Fargate, com o objetivo de reduzir a quantidade de recursos gerenciados. Como o Fargate sobe uma micro VM para cada pod do Kubernetes, a área de ataque fica reduzida favorecendo também o ponto de vista de segurança.
+
+No quesito escalabilidade, foi utilizado um Horizontal Pod Autoscaler que cria mais pods do deployment da aplicação de acordo com o uso de CPU. Os logs do EKS estão sendo enviados para um Log Group do CloudWatch. Tanto para o funcionamento do Autoscaler quanto para monitoramento, foi configurado o Metrics Server.
+
+A arquitetura final ficou conforme o diagrama abaixo:
+
+<!-- TODO: Adicionar diagrama da arquitetura de infra -->
+
+##### IaC
+
+Toda a configuração dos recursos de Infra (recursos AWS, configurações do Kubernetes, aplicação de charts Helm, etc) foi feita utilizando o Terraform. As implementações foram separadas em 3 grandes blocos: **vpc**, **iam** e **eks**. No diretório `vpc` são definidos todos os recursos de rede, no `iam` são definidas as Roles e Policies necessárias para o funcionamento dos serviços e no `eks` é criado e configurado o cluster EKS e são configurados todos os recursos do Kubernetes como Namespaces, Deployments, Services, Ingresses, etc.
+
+Os pré-requisitos para execução do Terraform são:
+
+- Terraform (v1.1.4 ou superior)
+- Kubectl (1.23.6 ou superior)
+- AWS CLI (2.7.33 ou superior)
+
+Foi criado um arquivo chamado `default.tfvars` com as configurações padrão para subir todos os artefatos de infra, desta forma para criar a infra devem ser executados os passos abaixo no diretório `terraform`:
+
+```sh
+terraform init
+terraform apply -var-file="default.tfvars" -auto-approve
+```
+
+> *Obs:* Em alguns casos podem ocorrer erros durante o apply da infra toda de uma vez devido ao tempo de configuração de cada recurso. Caso ocorra, pode ser necessário executar o apply mais uma vez para finalizar os últimos recursos que por ventura não tenham sido criados ou não estejam disponíveis.
 
 #### 2. Crie uma forma que possamos subir essa aplicação localmente de forma simples.
 
@@ -57,14 +88,16 @@ Hey Bro, Ninja API is Alive!%
 
 #### 5. Discorra qual (ou quais) processos você adotaria para garantir uma entrega contínua desta aplicação, desde o desenvolvimento, até a produção.
 
-- Versionamento do repositório, das imagens docker e de todo possivel artefato versionável (libs, modulos terraform, etc)
-- Validação de percentual de cobertura de testes
-- Adoção de ferramenta de análise estática de código fonte (Sonarqube)
-- Ferramentas de validação de vulnerabilidades em imagens docker
-- Ferramentas de validação de vulnerabilidades nas libs utilizadas no projeto
-- Processo de Pull Request + Code Review
+- Versionamento do repositório (uso de tags no git + GitFlow)
+- Versionamento de artefatos em geral (imagens docker, libs, módulos terraform, charts helm, etc)
+- Processo de Pull Request + Code Review + Validações de CI
+- Validação de percentual de cobertura de testes no CI (em tempo de Pull Request)
+- Uso de análise estática de código fonte no CI (ex: SonarQube)
+- Validação de vulnerabilidades em imagens docker
+- Validação de vulnerabilidades nas dependências utilizadas no projeto
+- Validação de dependências desatualizadas no projeto
 - Automação do processo de release (versionamento/publicação de pacotes/imagens docker)
-- Adoção de um ambiente de testes 
-- Automação do processo de deploy em testes
+- Criação de ambientes de testes  
+- Automação do processo de deploy em ambiente de testes
 - Automação do rollback de uma versão aplicada
 - Adoção de estratégias como blue/green ou canary para deploy em produção
