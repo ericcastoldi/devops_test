@@ -32,12 +32,12 @@ jobs:
         - sudo ../install-tf-and-aws-cli.sh
       script:
         - terraform init
-        - terraform plan
+        - terraform plan -var-file="default.tfvars"
     - name: Apply
       install:
         - cd terraform
         - sudo ../install-tf-and-aws-cli.sh
       script:
         - terraform init
-        - terraform apply -auto-approve
+        - terraform apply -var-file="default.tfvars" -auto-approve
 

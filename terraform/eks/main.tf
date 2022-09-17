@@ -140,6 +140,11 @@ resource "kubernetes_deployment" "app" {
           }
 
           env {
+            name  = "APP_NAME"
+            value = var.app_name
+          }
+
+          env {
             name  = "LISTEN_PORT"
             value = var.app_port
           }
@@ -156,7 +161,6 @@ resource "kubernetes_deployment" "app" {
           }
 
           liveness_probe {
-
             http_get {
               path = "/healthcheck"
               port = var.app_port

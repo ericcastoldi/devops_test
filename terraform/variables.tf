@@ -18,7 +18,7 @@ variable "app_image" {
 }
 
 variable "app_port" {
-  default     = 80 #00
+  default     = 8000
   description = "Porta exposta pela aplicação."
 }
 
@@ -66,5 +66,5 @@ variable "public_subnets" {
       az   = "us-east-1b"
       cidr = "10.0.4.0/24"
   }]
-  description = "Lista de Availability Zones e CIDRs para criação das subnets privadas."
+  description = "Lista de Availability Zones e CIDRs para criação das subnets publicas."
 }
