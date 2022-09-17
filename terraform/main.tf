@@ -34,8 +34,8 @@ module "vpc" {
 
 # IAM
 module "iam" {
-  source       = "./iam"
-  cluster_name = var.cluster_name
+  source                      = "./iam"
+  cluster_name                = var.cluster_name
   openid_connect_provider_arn = module.eks.openid_connect_provider_arn
   openid_connect_provider_url = module.eks.openid_connect_provider_url
 }
