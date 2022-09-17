@@ -32,10 +32,11 @@ Hey Bro, Ninja is Alive!%
 
 Utilizei o Travis CI para criar uma pipeline com os jobs:
 
-- Testes: https://app.travis-ci.com/github/ericcastoldi/devops_test/jobs/582979443
-- Build: https://app.travis-ci.com/github/ericcastoldi/devops_test/jobs/582979444
-- Build + Push da Imagem Docker: https://app.travis-ci.com/github/ericcastoldi/devops_test/jobs/582979445
-- Plan do Deploy da Infra via Terraform: https://app.travis-ci.com/github/ericcastoldi/devops_test/jobs/582979446
+- Testes: https://app.travis-ci.com/github/ericcastoldi/devops_test/jobs/583106167
+- Build App: https://app.travis-ci.com/github/ericcastoldi/devops_test/jobs/583106168
+- Docker Build And Push: https://app.travis-ci.com/github/ericcastoldi/devops_test/jobs/583106169
+- Terraform Plan: https://app.travis-ci.com/github/ericcastoldi/devops_test/jobs/583106170
+- Terraform Apply: https://app.travis-ci.com/github/ericcastoldi/devops_test/jobs/583106171
 
 #### 4. Altere o nome da aplicação.
 
