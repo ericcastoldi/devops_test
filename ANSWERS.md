@@ -13,7 +13,7 @@ Dado o Cenário acima queremos que você faça o seguinte:
 
 ##### Arquitetura de Infra
 
-A rede foi configurada utilizando uma VPC com duas Availability Zones, contendo 2 subnets publicas e 2 subnets privadas. O deploy da aplicação se dá em um cluster EKS, e seu deployment roda nas subnets privadas. O Load Balancer fica na subnet publica recebendo as requisições vindas via Internet Gateway e repassando ao ingress do Kubernetes até que a requisição chega para os pods (subnet privada). Após o processamento, a resposta passa por um NAT Gateway para voltar para a internet. 
+A rede foi configurada utilizando uma VPC com duas Availability Zones, contendo 2 subnets publicas e 2 subnets privadas. O deploy da aplicação se dá em um cluster EKS, e seu deployment roda nas subnets privadas. O Load Balancer fica recebendo as requisições vindas via Internet Gateway e repassando ao ingress do Kubernetes até que a requisição chega para os pods. Após o processamento, a resposta passa por um NAT Gateway para voltar para a internet. 
 
 O EKS foi configurado em conjunto com o Fargate, com o objetivo de reduzir a quantidade de recursos gerenciados. Como o Fargate sobe uma micro VM para cada pod do Kubernetes, a área de ataque fica reduzida favorecendo também o ponto de vista de segurança.
 
